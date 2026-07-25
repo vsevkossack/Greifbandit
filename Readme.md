@@ -2,7 +2,7 @@
 
 ## Der freundliche Schatzsucher für den Alltag
 
-**_Chaos ade - Greifbandit zuhaus_**
+**_Chaos ade - Greifbandit im Haus_**
 
 Greifbandit ist ein experimenteller mobiler Assistenzroboter, der verlorene oder abgelegte Gegenstände im Haushalt finden, greifen und zurückbringen kann.
 
