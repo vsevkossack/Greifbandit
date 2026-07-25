@@ -81,6 +81,7 @@ Der Fokus liegt auf der kompletten technischen Kette:
 ---
 
 # Systemübersicht
+```
           Stereo Kamera
                |
                |
@@ -94,7 +95,7 @@ Der Fokus liegt auf der kompletten technischen Kette:
   Mobile Plattform Roboterarm
     |                     |
 Motoren Greifer    Encoder Aktoren
-
+```
 
 ---
 
@@ -413,7 +414,7 @@ Done
 Greifbandit/
 
 ├── README.md
-├── docs/
+├── Docs/
 ├── mechanics/
 ├── electronics/
 ├── firmware/

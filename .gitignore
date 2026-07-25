@@ -1,0 +1,27 @@
+# Temporary files starting with ~
+~*
+
+# Office product temporary files
+~$*
+.~*
+*.tmp
+
+# Microsoft Office
+*.xlsx#
+*.docx#
+*.pptx#
+*.xls#
+*.doc#
+*.ppt#
+
+# LibreOffice
+.~lock*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
