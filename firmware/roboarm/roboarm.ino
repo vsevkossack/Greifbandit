@@ -4,19 +4,28 @@ Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
 
 // ESP32-S3 Servo-Pins
-// GPIO 9, 10 und 11 sind auf vielen ESP32-S3-Boards Flash-/Boot-Pins und
-// daher für Servos nicht zuverlässig. Saubere PWM-Pins sind z. B. 12..17.
-// Wenn am Board andere Pins verwendet werden, hier gezielt umkonfigurieren.
-const int SERVO_PINS[6] = {12, 13, 14, 15, 16, 17};
+// Auf vielen ESP32-S3-Boards sind GPIO 14/15/16 nicht frei nutzbar oder werden
+// von Flash/Boot-/Board-Reservierungen belegt. Deshalb hier eine robuste,
+// allgemein brauchbare PWM-Belegung verwenden. Wenn dein Board andere freie GPIOs
+// hat, passe SERVO_PINS gezielt an.
+const int SERVO_PINS[6] = {12, 13, 18, 21, 22, 27};
 const int SERVO_COUNT = 6;
 
 bool attachServo(int index) {
+  if (index < 0 || index >= SERVO_COUNT) {
+    Serial.printf("Servo %d: ungültiger Index\n", index);
+    return false;
+  }
+
   const int pin = SERVO_PINS[index];
 
   if (pin < 0 || pin > 47) {
     Serial.printf("Servo %d: ungültiger GPIO %d\n", index, pin);
     return false;
   }
+
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, LOW);
 
   s[index].setPeriodHertz(50);
   bool ok = s[index].attach(pin, 500, 2400);
@@ -27,6 +36,7 @@ bool attachServo(int index) {
   }
 
   s[index].write(pos[index]);
+  Serial.printf("Servo %d an GPIO %d erfolgreich aktiviert.\n", index, pin);
   return true;
 }
 
