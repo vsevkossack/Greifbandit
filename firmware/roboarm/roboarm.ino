@@ -4,11 +4,11 @@ Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
 
 // ESP32-S3 Servo-Pins
-// Auf vielen ESP32-S3-Boards sind GPIO 14/15/16 nicht frei nutzbar oder werden
-// von Flash/Boot-/Board-Reservierungen belegt. Deshalb hier eine robuste,
-// allgemein brauchbare PWM-Belegung verwenden. Wenn dein Board andere freie GPIOs
-// hat, passe SERVO_PINS gezielt an.
-const int SERVO_PINS[6] = {12, 13, 18, 21, 22, 27};
+// GPIO 22 und 27 existieren nicht auf vielen ESP32-S3-Boards. Wenn auf deinem
+// Board 14/15/16 ebenfalls nicht funktionieren, verwende stattdessen eine
+// bekannte freie GPIO-Reihe des S3. Diese Werte sind als sichere, allgemein
+// nutzbare PWM-Ausgänge für viele S3-Boards geeignet.
+const int SERVO_PINS[6] = {4, 5, 6, 7, 8, 9};
 const int SERVO_COUNT = 6;
 
 bool attachServo(int index) {
