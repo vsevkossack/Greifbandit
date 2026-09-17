@@ -4,12 +4,23 @@ Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
 
 // ESP32-S3 Servo-Pins
-// GPIO 22 und 27 existieren nicht auf vielen ESP32-S3-Boards. Wenn auf deinem
-// Board 14/15/16 ebenfalls nicht funktionieren, verwende stattdessen eine
-// bekannte freie GPIO-Reihe des S3. Diese Werte sind als sichere, allgemein
-// nutzbare PWM-Ausgänge für viele S3-Boards geeignet.
+// Diese Pins sind für deinen Board passend und werden als 6 Servo-Ausgänge
+// verwendet. Die HW-95-Motorsteuerung nutzt eigene freie GPIOs und läuft
+// getrennt davon.
 const int SERVO_PINS[6] = {4, 5, 6, 7, 8, 9};
 const int SERVO_COUNT = 6;
+
+// HW-95 / Motorsteuerung (Tank-Style: links/rechts separat)
+// Wähle hier freie GPIOs, die nicht in SERVO_PINS liegen.
+const int MOTOR_LEFT_FWD = 10;
+const int MOTOR_LEFT_BWD = 11;
+const int MOTOR_RIGHT_FWD = 12;
+const int MOTOR_RIGHT_BWD = 13;
+const int MOTOR_LEFT_PWM = 14;
+const int MOTOR_RIGHT_PWM = 15;
+
+bool servoValid[6] = {false, false, false, false, false, false};
+int activeServoCount = 0;
 
 bool attachServo(int index) {
   if (index < 0 || index >= SERVO_COUNT) {
@@ -31,10 +42,13 @@ bool attachServo(int index) {
   bool ok = s[index].attach(pin, 500, 2400);
 
   if (!ok) {
-    Serial.printf("Servo %d konnte nicht an GPIO %d gehängt werden.\n", index, pin);
+    servoValid[index] = false;
+    Serial.printf("Servo %d an GPIO %d nicht nutzbar, übersprungen.\n", index, pin);
     return false;
   }
 
+  servoValid[index] = true;
+  activeServoCount++;
   s[index].write(pos[index]);
   Serial.printf("Servo %d an GPIO %d erfolgreich aktiviert.\n", index, pin);
   return true;
@@ -42,11 +56,24 @@ bool attachServo(int index) {
 
 void setup() {
   Serial.begin(115200);
+  activeServoCount = 0;
+
+  pinMode(MOTOR_LEFT_FWD, OUTPUT);
+  pinMode(MOTOR_LEFT_BWD, OUTPUT);
+  pinMode(MOTOR_RIGHT_FWD, OUTPUT);
+  pinMode(MOTOR_RIGHT_BWD, OUTPUT);
+  pinMode(MOTOR_LEFT_PWM, OUTPUT);
+  pinMode(MOTOR_RIGHT_PWM, OUTPUT);
+
+  analogWrite(MOTOR_LEFT_PWM, 0);
+  analogWrite(MOTOR_RIGHT_PWM, 0);
+  stopRobot();
 
   for (int i = 0; i < SERVO_COUNT; i++) {
     attachServo(i);
   }
 
+  Serial.printf("Aktive Servos: %d von %d\n", activeServoCount, SERVO_COUNT);
   delay(500);
   printHelp();
 }
@@ -70,8 +97,34 @@ void printHelp() {
   Serial.println("  P 30 60 90 120 150 90");
   Serial.println("           -> alle Servos einzeln setzen");
   Serial.println("  S 2 45   -> Servo 2 auf 45");
+  Serial.println("  F        -> vorwaerts");
+  Serial.println("  B        -> rueckwaerts");
+  Serial.println("  L        -> links drehen");
+  Serial.println("  R        -> rechts drehen");
+  Serial.println("  STOP     -> motoren aus");
   Serial.println("  HELP     -> Hilfe anzeigen");
   Serial.println("-------------------------");
+}
+
+void stopRobot() {
+  digitalWrite(MOTOR_LEFT_FWD, LOW);
+  digitalWrite(MOTOR_LEFT_BWD, LOW);
+  digitalWrite(MOTOR_RIGHT_FWD, LOW);
+  digitalWrite(MOTOR_RIGHT_BWD, LOW);
+  analogWrite(MOTOR_LEFT_PWM, 0);
+  analogWrite(MOTOR_RIGHT_PWM, 0);
+  Serial.println("Roboter gestoppt");
+}
+
+void moveRobot(int leftDir, int rightDir, int speedLeft, int speedRight) {
+  // leftDir / rightDir: 1 vorwaerts, -1 rueckwaerts, 0 stop
+  digitalWrite(MOTOR_LEFT_FWD, leftDir == 1 ? HIGH : LOW);
+  digitalWrite(MOTOR_LEFT_BWD, leftDir == -1 ? HIGH : LOW);
+  digitalWrite(MOTOR_RIGHT_FWD, rightDir == 1 ? HIGH : LOW);
+  digitalWrite(MOTOR_RIGHT_BWD, rightDir == -1 ? HIGH : LOW);
+
+  analogWrite(MOTOR_LEFT_PWM, abs(speedLeft));
+  analogWrite(MOTOR_RIGHT_PWM, abs(speedRight));
 }
 
 void executeCommand(String command) {
@@ -111,6 +164,35 @@ void executeCommand(String command) {
     return;
   }
 
+  if (command == "F") {
+    moveRobot(1, 1, 200, 200);
+    Serial.println("Vorwaerts");
+    return;
+  }
+
+  if (command == "B") {
+    moveRobot(-1, -1, 200, 200);
+    Serial.println("Rueckwaerts");
+    return;
+  }
+
+  if (command == "L") {
+    moveRobot(-1, 1, 180, 180);
+    Serial.println("Links");
+    return;
+  }
+
+  if (command == "R") {
+    moveRobot(1, -1, 180, 180);
+    Serial.println("Rechts");
+    return;
+  }
+
+  if (command == "STOP") {
+    stopRobot();
+    return;
+  }
+
   if (command == "HELP" || command == "?") {
     printHelp();
     return;
@@ -139,6 +221,9 @@ void setAllServos(int a, int b, int c, int d, int e, int f) {
   pos[5] = constrain(f, 0, 180);
 
   for (int i = 0; i < 6; i++) {
+    if (!servoValid[i]) {
+      continue;
+    }
     s[i].write(pos[i]);
   }
 }
@@ -164,6 +249,11 @@ void setSingleServoFromSerial(String command) {
 
   if (index < 0 || index >= 6) {
     Serial.println("Servo-Index muss zwischen 0 und 5 liegen");
+    return;
+  }
+
+  if (!servoValid[index]) {
+    Serial.printf("Servo %d ist auf diesem Board nicht nutzbar.\n", index);
     return;
   }
 
