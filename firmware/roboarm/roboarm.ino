@@ -212,13 +212,20 @@ void executeCommand(String command) {
   printHelp();
 }
 
+int clampServoAngle(int index, int angle) {
+  if (index == 3) { // GPIO 7 / Servo 3
+    return constrain(angle, 0, 40);
+  }
+  return constrain(angle, 0, 180);
+}
+
 void setAllServos(int a, int b, int c, int d, int e, int f) {
-  pos[0] = constrain(a, 0, 180);
-  pos[1] = constrain(b, 0, 180);
-  pos[2] = constrain(c, 0, 180);
-  pos[3] = constrain(d, 0, 180);
-  pos[4] = constrain(e, 0, 180);
-  pos[5] = constrain(f, 0, 180);
+  pos[0] = clampServoAngle(0, a);
+  pos[1] = clampServoAngle(1, b);
+  pos[2] = clampServoAngle(2, c);
+  pos[3] = clampServoAngle(3, d);
+  pos[4] = clampServoAngle(4, e);
+  pos[5] = clampServoAngle(5, f);
 
   for (int i = 0; i < 6; i++) {
     if (!servoValid[i]) {
@@ -257,7 +264,7 @@ void setSingleServoFromSerial(String command) {
     return;
   }
 
-  pos[index] = constrain(angle, 0, 180);
+  pos[index] = clampServoAngle(index, angle);
   s[index].write(pos[index]);
 
   Serial.print("Servo ");
