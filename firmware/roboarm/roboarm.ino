@@ -4,12 +4,15 @@ Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
 
 // ESP32-S3 Servo-Pins
-// Reihenfolge wie gewünscht: 8, 7, 6, 5, 4, 9
-// Pin 8 ist auf vielen ESP32-S3-Boards problematisch und kann den Servo-Stack
-// blockieren. Wenn ein Servo nicht nutzbar ist, werden die übrigen trotzdem
-// weiter nacheinander angesteuert.
-const int SERVO_PINS[6] = {8, 7, 6, 5, 4, 9};
-const int SERVO_FALLBACK_PINS[6] = {18, 19, 6, 5, 4, 9};
+// Reale Hardware-Reihenfolge:
+// Servo 0 = Finger -> GPIO 4
+// Servo 1 = Handgelenk -> GPIO 5
+// Servo 2 = Ellbogen 1 -> GPIO 6
+// Servo 3 = Ellbogen 2 -> GPIO 7
+// Servo 4 = Schulter -> GPIO 8
+// Servo 5 = Schulter drehen -> GPIO 9
+const int SERVO_PINS[6] = {4, 5, 6, 7, 8, 9};
+const int SERVO_FALLBACK_PINS[6] = {4, 5, 6, 7, 18, 19};
 const int SERVO_COUNT = 6;
 
 // HW-95 / Motorsteuerung (Tank-Style: links/rechts separat)
@@ -23,6 +26,17 @@ const int MOTOR_RIGHT_PWM = 15;
 
 bool servoValid[6] = {false, false, false, false, false, false};
 int activeServoCount = 0;
+
+const int FINGER_SERVO_INDEX = 0;
+// Mechanischer Sicherheitsbereich des Fingers: nicht 180°! Nimm den echten
+// Öffnungswert deiner Mechanik und halte dich daran.
+const int FINGER_OPEN_ANGLE = 25;
+const int FINGER_CLOSE_ANGLE = 110;
+const int FINGER_GRIP_ANGLE = 100;
+const int FINGER_STEP_SIZE = 5;
+const int FINGER_STEP_DELAY_MS = 40;
+const int FINGER_MAX_STEP_COUNT = 18;
+bool fingerClosed = false;
 
 bool tryAttachServoAtPin(int index, int pin) {
   if (pin < 0 || pin > 47) {
@@ -113,6 +127,11 @@ void printHelp() {
   Serial.println("  LIFT     -> Position 3");
   Serial.println("  DROP     -> Position 4");
   Serial.println("  SEQ      -> Servos nacheinander bewegen");
+  Serial.println("  OPEN     -> Finger bis mechanisch offen");
+  Serial.println("  CLOSE    -> Finger bis geschlossen");
+  Serial.println("  GRIP     -> Finger kontrolliert greifen");
+  Serial.println("  AUTO     -> adaptives Greifen mit sicheren Schritten");
+  Serial.println("  RELEASE  -> Finger wieder offen");
   Serial.println("  P 30 60 90 120 150 90");
   Serial.println("           -> alle Servos gleichzeitig setzen");
   Serial.println("  S 2 45   -> Servo 2 auf 45");
@@ -185,9 +204,38 @@ void executeCommand(String command) {
   }
 
   if (command == "SEQ") {
-    int seqValues[6] = {15, 30, 60, 90, 120, 150};
-    moveMultiServoSequence(seqValues, 120);
-    Serial.println("Servos nacheinander bewegt");
+    int seqValues[6] = {90, 90, 90, 90, 90, 90};
+    moveServoSequenceDescending(seqValues, 250);
+    Serial.println("Servos in Reihenfolge 9->4 nacheinander bewegt");
+    return;
+  }
+
+  if (command == "OPEN") {
+    moveFingerTo(FINGER_OPEN_ANGLE);
+    Serial.println("Finger offen");
+    return;
+  }
+
+  if (command == "CLOSE") {
+    moveFingerTo(FINGER_CLOSE_ANGLE);
+    Serial.println("Finger geschlossen");
+    return;
+  }
+
+  if (command == "GRIP") {
+    moveFingerTo(FINGER_GRIP_ANGLE);
+    Serial.println("Finger greift kontrolliert zu");
+    return;
+  }
+
+  if (command == "AUTO") {
+    adaptiveGripFinger();
+    return;
+  }
+
+  if (command == "RELEASE") {
+    moveFingerTo(FINGER_OPEN_ANGLE);
+    Serial.println("Finger freigegeben");
     return;
   }
 
@@ -262,14 +310,65 @@ void setAllServos(int a, int b, int c, int d, int e, int f) {
   }
 }
 
-void moveMultiServoSequence(int values[6], int stepDelayMs) {
-  for (int i = 0; i < 6; i++) {
+void moveServoSequenceDescending(int values[6], int stepDelayMs) {
+  // Reihenfolge: Servo 5 -> 4 -> 3 -> 2 -> 1 -> 0
+  // Das entspricht den Pins 9, 8, 7, 6, 5, 4.
+  for (int i = 5; i >= 0; i--) {
     if (!servoValid[i]) {
       continue;
     }
     pos[i] = clampServoAngle(i, values[i]);
     s[i].write(pos[i]);
+    Serial.printf("Servo %d auf %d gesetzt\n", i, pos[i]);
     delay(stepDelayMs);
+  }
+}
+
+void moveFingerTo(int targetAngle) {
+  if (!servoValid[FINGER_SERVO_INDEX]) {
+    Serial.println("Finger-Servo ist nicht aktiv.");
+    return;
+  }
+
+  targetAngle = constrain(targetAngle, FINGER_OPEN_ANGLE, FINGER_CLOSE_ANGLE);
+  pos[FINGER_SERVO_INDEX] = targetAngle;
+  s[FINGER_SERVO_INDEX].write(pos[FINGER_SERVO_INDEX]);
+
+  fingerClosed = (pos[FINGER_SERVO_INDEX] >= FINGER_GRIP_ANGLE);
+  Serial.printf("Finger auf %d Grad -> %s\n",
+                pos[FINGER_SERVO_INDEX],
+                fingerClosed ? "gegriffen" : "offen");
+}
+
+void adaptiveGripFinger() {
+  if (!servoValid[FINGER_SERVO_INDEX]) {
+    Serial.println("Finger-Servo ist nicht aktiv.");
+    return;
+  }
+
+  int current = pos[FINGER_SERVO_INDEX];
+  int target = FINGER_GRIP_ANGLE;
+
+  Serial.println("Adaptive Greifung gestartet: sichere kleine Schritte");
+
+  for (int step = 0; step < FINGER_MAX_STEP_COUNT; step++) {
+    if (current >= target) {
+      break;
+    }
+
+    current = min(current + FINGER_STEP_SIZE, target);
+    pos[FINGER_SERVO_INDEX] = constrain(current, FINGER_OPEN_ANGLE, FINGER_CLOSE_ANGLE);
+    s[FINGER_SERVO_INDEX].write(pos[FINGER_SERVO_INDEX]);
+    Serial.printf("Finger schliesst -> %d Grad\n", pos[FINGER_SERVO_INDEX]);
+    delay(FINGER_STEP_DELAY_MS);
+  }
+
+  if (pos[FINGER_SERVO_INDEX] >= FINGER_GRIP_ANGLE) {
+    fingerClosed = true;
+    Serial.println("Objekt sicher erfasst: Griffpunkt erreicht");
+  } else {
+    fingerClosed = false;
+    Serial.println("Greifung abgebrochen: sicherer Endpunkt erreicht");
   }
 }
 
@@ -304,6 +403,10 @@ void setSingleServoFromSerial(String command) {
 
   pos[index] = clampServoAngle(index, angle);
   s[index].write(pos[index]);
+
+  if (index == FINGER_SERVO_INDEX) {
+    fingerClosed = (pos[index] >= FINGER_GRIP_ANGLE);
+  }
 
   Serial.print("Servo ");
   Serial.print(index);
