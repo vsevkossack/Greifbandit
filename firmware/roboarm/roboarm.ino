@@ -36,6 +36,8 @@ const int FINGER_GRIP_ANGLE = 100;
 const int FINGER_STEP_SIZE = 5;
 const int FINGER_STEP_DELAY_MS = 40;
 const int FINGER_MAX_STEP_COUNT = 18;
+const int SERVO_STEP_SIZE = 3;
+const int SERVO_STEP_DELAY_MS = 25;
 bool fingerClosed = false;
 
 bool tryAttachServoAtPin(int index, int pin) {
@@ -324,6 +326,38 @@ void moveServoSequenceDescending(int values[6], int stepDelayMs) {
   }
 }
 
+void moveServoSmooth(int index, int targetAngle, int stepSize, int stepDelayMs) {
+  if (index < 0 || index >= SERVO_COUNT) {
+    Serial.println("Servo-Index außerhalb des gültigen Bereichs.");
+    return;
+  }
+
+  if (!servoValid[index]) {
+    Serial.printf("Servo %d ist nicht aktiv.\n", index);
+    return;
+  }
+
+  targetAngle = constrain(targetAngle, 0, 180);
+  int current = pos[index];
+
+  if (targetAngle > current) {
+    for (int angle = current; angle <= targetAngle; angle += stepSize) {
+      pos[index] = angle;
+      s[index].write(pos[index]);
+      delay(stepDelayMs);
+    }
+  } else {
+    for (int angle = current; angle >= targetAngle; angle -= stepSize) {
+      pos[index] = angle;
+      s[index].write(pos[index]);
+      delay(stepDelayMs);
+    }
+  }
+
+  pos[index] = targetAngle;
+  s[index].write(pos[index]);
+}
+
 void moveFingerTo(int targetAngle) {
   if (!servoValid[FINGER_SERVO_INDEX]) {
     Serial.println("Finger-Servo ist nicht aktiv.");
@@ -331,8 +365,7 @@ void moveFingerTo(int targetAngle) {
   }
 
   targetAngle = constrain(targetAngle, FINGER_OPEN_ANGLE, FINGER_CLOSE_ANGLE);
-  pos[FINGER_SERVO_INDEX] = targetAngle;
-  s[FINGER_SERVO_INDEX].write(pos[FINGER_SERVO_INDEX]);
+  moveServoSmooth(FINGER_SERVO_INDEX, targetAngle, SERVO_STEP_SIZE, SERVO_STEP_DELAY_MS);
 
   fingerClosed = (pos[FINGER_SERVO_INDEX] >= FINGER_GRIP_ANGLE);
   Serial.printf("Finger auf %d Grad -> %s\n",
