@@ -4,10 +4,12 @@ Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
 
 // ESP32-S3 Servo-Pins
-// Diese Pins sind für deinen Board passend und werden als 6 Servo-Ausgänge
-// verwendet. Die HW-95-Motorsteuerung nutzt eigene freie GPIOs und läuft
-// getrennt davon.
-const int SERVO_PINS[6] = {4, 5, 6, 7, 8, 9};
+// Reihenfolge wie gewünscht: 8, 7, 6, 5, 4, 9
+// Pin 8 ist auf vielen ESP32-S3-Boards problematisch und kann den Servo-Stack
+// blockieren. Wenn ein Servo nicht nutzbar ist, werden die übrigen trotzdem
+// weiter nacheinander angesteuert.
+const int SERVO_PINS[6] = {8, 7, 6, 5, 4, 9};
+const int SERVO_FALLBACK_PINS[6] = {18, 19, 6, 5, 4, 9};
 const int SERVO_COUNT = 6;
 
 // HW-95 / Motorsteuerung (Tank-Style: links/rechts separat)
@@ -22,14 +24,7 @@ const int MOTOR_RIGHT_PWM = 15;
 bool servoValid[6] = {false, false, false, false, false, false};
 int activeServoCount = 0;
 
-bool attachServo(int index) {
-  if (index < 0 || index >= SERVO_COUNT) {
-    Serial.printf("Servo %d: ungültiger Index\n", index);
-    return false;
-  }
-
-  const int pin = SERVO_PINS[index];
-
+bool tryAttachServoAtPin(int index, int pin) {
   if (pin < 0 || pin > 47) {
     Serial.printf("Servo %d: ungültiger GPIO %d\n", index, pin);
     return false;
@@ -42,8 +37,7 @@ bool attachServo(int index) {
   bool ok = s[index].attach(pin, 500, 2400);
 
   if (!ok) {
-    servoValid[index] = false;
-    Serial.printf("Servo %d an GPIO %d nicht nutzbar, übersprungen.\n", index, pin);
+    Serial.printf("Servo %d an GPIO %d nicht nutzbar.\n", index, pin);
     return false;
   }
 
@@ -52,6 +46,30 @@ bool attachServo(int index) {
   s[index].write(pos[index]);
   Serial.printf("Servo %d an GPIO %d erfolgreich aktiviert.\n", index, pin);
   return true;
+}
+
+bool attachServo(int index) {
+  if (index < 0 || index >= SERVO_COUNT) {
+    Serial.printf("Servo %d: ungültiger Index\n", index);
+    return false;
+  }
+
+  const int primaryPin = SERVO_PINS[index];
+  if (tryAttachServoAtPin(index, primaryPin)) {
+    return true;
+  }
+
+  const int fallbackPin = SERVO_FALLBACK_PINS[index];
+  if (fallbackPin != primaryPin && fallbackPin >= 0 && fallbackPin <= 47) {
+    Serial.printf("Servo %d: wechsle auf sicheren Fallback-GPIO %d\n", index, fallbackPin);
+    if (tryAttachServoAtPin(index, fallbackPin)) {
+      return true;
+    }
+  }
+
+  servoValid[index] = false;
+  Serial.printf("Servo %d wurde deaktiviert, weil kein passender GPIO verfügbar ist.\n", index);
+  return false;
 }
 
 void setup() {
@@ -94,9 +112,11 @@ void printHelp() {
   Serial.println("  GRAB     -> Position 2");
   Serial.println("  LIFT     -> Position 3");
   Serial.println("  DROP     -> Position 4");
+  Serial.println("  SEQ      -> Servos nacheinander bewegen");
   Serial.println("  P 30 60 90 120 150 90");
-  Serial.println("           -> alle Servos einzeln setzen");
+  Serial.println("           -> alle Servos gleichzeitig setzen");
   Serial.println("  S 2 45   -> Servo 2 auf 45");
+  Serial.println("  M 2 45   -> gleicher Befehl wie S: einzelner Motor");
   Serial.println("  F        -> vorwaerts");
   Serial.println("  B        -> rueckwaerts");
   Serial.println("  L        -> links drehen");
@@ -164,6 +184,13 @@ void executeCommand(String command) {
     return;
   }
 
+  if (command == "SEQ") {
+    int seqValues[6] = {15, 30, 60, 90, 120, 150};
+    moveMultiServoSequence(seqValues, 120);
+    Serial.println("Servos nacheinander bewegt");
+    return;
+  }
+
   if (command == "F") {
     moveRobot(1, 1, 200, 200);
     Serial.println("Vorwaerts");
@@ -203,7 +230,7 @@ void executeCommand(String command) {
     return;
   }
 
-  if (command.startsWith("S ")) {
+  if (command.startsWith("S ") || command.startsWith("M ")) {
     setSingleServoFromSerial(command);
     return;
   }
@@ -232,6 +259,17 @@ void setAllServos(int a, int b, int c, int d, int e, int f) {
       continue;
     }
     s[i].write(pos[i]);
+  }
+}
+
+void moveMultiServoSequence(int values[6], int stepDelayMs) {
+  for (int i = 0; i < 6; i++) {
+    if (!servoValid[i]) {
+      continue;
+    }
+    pos[i] = clampServoAngle(i, values[i]);
+    s[i].write(pos[i]);
+    delay(stepDelayMs);
   }
 }
 
