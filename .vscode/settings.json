@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.env.linux": {
+    "PATH": "/home/seva/.local/bin:${env:PATH}"
+  }
+}

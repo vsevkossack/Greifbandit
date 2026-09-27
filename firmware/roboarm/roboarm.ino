@@ -1,4 +1,5 @@
 #include <ESP32Servo.h>
+#include <Adafruit_NeoPixel.h>
 
 Servo s[6];
 int pos[6] = {90, 90, 90, 90, 90, 90};
@@ -26,6 +27,17 @@ const int MOTOR_RIGHT_PWM = 15;
 
 bool servoValid[6] = {false, false, false, false, false, false};
 int activeServoCount = 0;
+
+// ESP32-S3 onboard RGB LED on GPIO 48 (most HW678 boards use a NeoPixel-style RGB LED).
+// If your specific board has a different onboard LED pin, change this value.
+const int STATUS_LED_PIN = 48;
+const uint16_t STATUS_LED_COUNT = 1;
+const uint8_t STATUS_LED_BRIGHTNESS = 26; // ~10% of full brightness, easier on the eyes.
+const uint32_t STATUS_LED_ON_MS = 50;
+const uint32_t STATUS_LED_OFF_MS = 1950;
+Adafruit_NeoPixel statusPixels(STATUS_LED_COUNT, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
+bool statusLedOn = false;
+uint32_t lastStatusLedChange = 0;
 
 const int FINGER_SERVO_INDEX = 0;
 // Mechanischer Sicherheitsbereich des Fingers: nicht 180°! Nimm den echten
@@ -92,6 +104,17 @@ void setup() {
   Serial.begin(115200);
   activeServoCount = 0;
 
+  statusPixels.begin();
+  statusPixels.setBrightness(STATUS_LED_BRIGHTNESS);
+  statusPixels.clear();
+  statusPixels.setPixelColor(0, statusPixels.Color(32, 128, 32));
+  statusPixels.show();
+  delay(300);
+  statusPixels.clear();
+  statusPixels.show();
+  statusLedOn = false;
+  lastStatusLedChange = millis();
+
   pinMode(MOTOR_LEFT_FWD, OUTPUT);
   pinMode(MOTOR_LEFT_BWD, OUTPUT);
   pinMode(MOTOR_RIGHT_FWD, OUTPUT);
@@ -113,10 +136,25 @@ void setup() {
 }
 
 void loop() {
+  updateStatusLed();
+
   if (Serial.available() > 0) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     executeCommand(cmd);
+  }
+}
+
+void updateStatusLed() {
+  uint32_t now = millis();
+  uint32_t interval = statusLedOn ? STATUS_LED_ON_MS : STATUS_LED_OFF_MS;
+
+  if (now - lastStatusLedChange >= interval) {
+    statusLedOn = !statusLedOn;
+    uint32_t color = statusLedOn ? statusPixels.Color(0, 80, 0) : statusPixels.Color(0, 0, 0);
+    statusPixels.setPixelColor(0, color);
+    statusPixels.show();
+    lastStatusLedChange = now;
   }
 }
 

@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+        "label": "Build RoboArm (ESP32-S3)",
+        "type": "shell",
+        "command": "/home/seva/.local/bin/arduino-cli",
+        "args": [
+            "compile",
+            "-b",
+            "esp32:esp32:esp32s3",
+            "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        ],
+        "options": {
+            "cwd": "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        },
+        "group": {
+            "kind": "build"
+        },
+        "problemMatcher": [],
+        "presentation": {
+            "reveal": "always",
+            "panel": "dedicated",
+            "clear": true
+        }
+    },
+    {
+        "label": "Upload RoboArm (ESP32-S3)",
+        "type": "shell",
+        "command": "/home/seva/.local/bin/arduino-cli",
+        "args": [
+            "compile",
+            "--upload",
+            "-b",
+            "esp32:esp32:esp32s3",
+            "-p",
+            "/dev/ttyACM0",
+            "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        ],
+        "options": {
+            "cwd": "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        },
+        "group": {
+            "kind": "build"
+        },
+        "problemMatcher": [],
+        "presentation": {
+            "reveal": "always",
+            "panel": "dedicated",
+            "clear": true
+        }
+    },
+    {
+        "label": "Build + Upload RoboArm (ESP32-S3)",
+        "type": "shell",
+        "command": "/home/seva/.local/bin/arduino-cli",
+        "args": [
+            "compile",
+            "--upload",
+            "-b",
+            "esp32:esp32:esp32s3",
+            "-p",
+            "/dev/ttyACM0",
+            "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        ],
+        "options": {
+            "cwd": "/home/seva/Projects/Greifbandit/firmware/roboarm"
+        },
+        "group": {
+            "kind": "build"
+        },
+        "problemMatcher": [],
+        "presentation": {
+            "reveal": "always",
+            "panel": "dedicated",
+            "clear": true
+        }
+    }
+]
+}
