@@ -297,18 +297,20 @@ int clampServoAngle(int index, int angle) {
 }
 
 void setAllServos(int a, int b, int c, int d, int e, int f) {
-  pos[0] = clampServoAngle(0, a);
-  pos[1] = clampServoAngle(1, b);
-  pos[2] = clampServoAngle(2, c);
-  pos[3] = clampServoAngle(3, d);
-  pos[4] = clampServoAngle(4, e);
-  pos[5] = clampServoAngle(5, f);
+  int target[6] = {
+    clampServoAngle(0, a),
+    clampServoAngle(1, b),
+    clampServoAngle(2, c),
+    clampServoAngle(3, d),
+    clampServoAngle(4, e),
+    clampServoAngle(5, f)
+  };
 
   for (int i = 0; i < 6; i++) {
     if (!servoValid[i]) {
       continue;
     }
-    s[i].write(pos[i]);
+    moveServoSmooth(i, target[i], SERVO_STEP_SIZE, SERVO_STEP_DELAY_MS);
   }
 }
 
@@ -319,10 +321,9 @@ void moveServoSequenceDescending(int values[6], int stepDelayMs) {
     if (!servoValid[i]) {
       continue;
     }
-    pos[i] = clampServoAngle(i, values[i]);
-    s[i].write(pos[i]);
+    int target = clampServoAngle(i, values[i]);
+    moveServoSmooth(i, target, SERVO_STEP_SIZE, stepDelayMs);
     Serial.printf("Servo %d auf %d gesetzt\n", i, pos[i]);
-    delay(stepDelayMs);
   }
 }
 
@@ -434,8 +435,8 @@ void setSingleServoFromSerial(String command) {
     return;
   }
 
-  pos[index] = clampServoAngle(index, angle);
-  s[index].write(pos[index]);
+  int target = clampServoAngle(index, angle);
+  moveServoSmooth(index, target, SERVO_STEP_SIZE, SERVO_STEP_DELAY_MS);
 
   if (index == FINGER_SERVO_INDEX) {
     fingerClosed = (pos[index] >= FINGER_GRIP_ANGLE);
