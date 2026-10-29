@@ -423,6 +423,21 @@ Greifbandit/
 ├── manipulator/
 └── tests/
 
+---
+
+# Firmware
+
+Die Firmware ist als eigener Bereich dokumentiert: [firmware/README.md](firmware/README.md)
+
+Ziel: Die Firmware steuert die Roboterhardware, inklusive Bewegung, Arm und Greifer. Sie arbeitet als Steuerzentrale und übernimmt die reale Handlung, während das Kamera-Subsystem nur Bilddaten liefert.
+
+---
+
+# Kamera-Subsystem
+
+Das Kamera-Subsystem ist als eigener Bereich dokumentiert: [vision/README.md](vision/README.md)
+
+Ziel: Die ESP32-S3-CAM liefert ein Livebild an den PC. Es ist nur das Auge des Roboters und überträgt ausschließlich Live-Bilder. Die eigentliche Logik und Objekterkennung laufen auf dem anderen ESP.
 
 ---
 
